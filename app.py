@@ -1,7 +1,7 @@
 import os
 import mysql.connector
 
-from flask import Flask, render_template
+from flask import Flask, abort, redirect, render_template, request, url_for
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -49,6 +49,122 @@ def inicio():
     conexion.close()
 
     return render_template("index.html", vuelos=vuelos)
+
+
+@app.route("/pasajeros", methods=["GET", "POST"])
+def pasajeros():
+    if request.method == "POST":
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        cursor.execute(
+            """
+            INSERT INTO pasajeros
+                (cedula, nombres, apellidos, telefono, correo, fecha_nacimiento)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (
+                request.form["cedula"],
+                request.form["nombres"],
+                request.form["apellidos"],
+                request.form["telefono"],
+                request.form["correo"],
+                request.form["fecha_nacimiento"],
+            ),
+        )
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        return redirect(url_for("pasajeros"))
+
+    conexion = obtener_conexion()
+    cursor = conexion.cursor(dictionary=True)
+    cursor.execute(
+        """
+        SELECT id_pasajero, cedula, nombres, apellidos, telefono, correo,
+               fecha_nacimiento
+        FROM pasajeros
+        ORDER BY id_pasajero
+        """
+    )
+    lista_pasajeros = cursor.fetchall()
+    cursor.close()
+    conexion.close()
+    return render_template("pasajeros.html", pasajeros=lista_pasajeros)
+
+
+@app.route("/pasajeros/editar/<int:id_pasajero>", methods=["GET", "POST"])
+def editar_pasajero(id_pasajero):
+    conexion = obtener_conexion()
+    cursor = conexion.cursor(dictionary=True)
+
+    if request.method == "POST":
+        cursor.execute(
+            """
+            UPDATE pasajeros
+            SET cedula = %s, nombres = %s, apellidos = %s, telefono = %s,
+                correo = %s, fecha_nacimiento = %s
+            WHERE id_pasajero = %s
+            """,
+            (
+                request.form["cedula"],
+                request.form["nombres"],
+                request.form["apellidos"],
+                request.form["telefono"],
+                request.form["correo"],
+                request.form["fecha_nacimiento"],
+                id_pasajero,
+            ),
+        )
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        return redirect(url_for("pasajeros"))
+
+    cursor.execute(
+        """
+        SELECT id_pasajero, cedula, nombres, apellidos, telefono, correo,
+               fecha_nacimiento
+        FROM pasajeros
+        WHERE id_pasajero = %s
+        """,
+        (id_pasajero,),
+    )
+    pasajero_editar = cursor.fetchone()
+    if pasajero_editar is None:
+        cursor.close()
+        conexion.close()
+        abort(404)
+
+    cursor.execute(
+        """
+        SELECT id_pasajero, cedula, nombres, apellidos, telefono, correo,
+               fecha_nacimiento
+        FROM pasajeros
+        ORDER BY id_pasajero
+        """
+    )
+    lista_pasajeros = cursor.fetchall()
+    cursor.close()
+    conexion.close()
+    return render_template(
+        "pasajeros.html",
+        pasajeros=lista_pasajeros,
+        pasajero_editar=pasajero_editar,
+    )
+
+
+@app.route("/pasajeros/eliminar/<int:id_pasajero>", methods=["POST"])
+def eliminar_pasajero(id_pasajero):
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+    cursor.execute(
+        "DELETE FROM pasajeros WHERE id_pasajero = %s",
+        (id_pasajero,),
+    )
+    conexion.commit()
+    cursor.close()
+    conexion.close()
+    return redirect(url_for("pasajeros"))
 
 
 if __name__ == "__main__":
