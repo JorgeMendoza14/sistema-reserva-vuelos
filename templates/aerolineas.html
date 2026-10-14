@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aerolíneas | Agencia de Vuelos</title>
+</head>
+
+<body>
+    <h1>Aerolíneas</h1>
+    <p><a href="{{ url_for('inicio') }}">Volver a vuelos</a></p>
+
+    <h2>{{ 'Editar aerolínea' if aerolinea_editar else 'Registrar aerolínea' }}</h2>
+    <form method="post" action="{{ url_for('editar_aerolinea', id_aerolinea=aerolinea_editar.id_aerolinea) if aerolinea_editar else url_for('aerolineas') }}">
+        <label for="nombre">Nombre</label>
+        <input id="nombre" name="nombre" type="text" required value="{{ aerolinea_editar.nombre if aerolinea_editar else '' }}">
+
+        <label for="codigo">Código</label>
+        <input id="codigo" name="codigo" type="text" required value="{{ aerolinea_editar.codigo if aerolinea_editar else '' }}">
+
+        <label for="pais">País</label>
+        <input id="pais" name="pais" type="text" required value="{{ aerolinea_editar.pais if aerolinea_editar else '' }}">
+
+        <button type="submit">{{ 'Guardar cambios' if aerolinea_editar else 'Registrar aerolínea' }}</button>
+        {% if aerolinea_editar %}
+        <a href="{{ url_for('aerolineas') }}">Cancelar</a>
+        {% endif %}
+    </form>
+
+    <h2>Listado de aerolíneas</h2>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Nombre</th>
+                <th>Código</th>
+                <th>País</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for aerolinea in aerolineas %}
+            <tr>
+                <td>{{ aerolinea.id_aerolinea }}</td>
+                <td>{{ aerolinea.nombre }}</td>
+                <td>{{ aerolinea.codigo }}</td>
+                <td>{{ aerolinea.pais }}</td>
+                <td>
+                    <a href="{{ url_for('editar_aerolinea', id_aerolinea=aerolinea.id_aerolinea) }}">Editar</a>
+                    <form method="post" action="{{ url_for('eliminar_aerolinea', id_aerolinea=aerolinea.id_aerolinea) }}" style="display: inline;">
+                        <button type="submit">Eliminar</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="5">No hay aerolíneas registradas.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+
+</html>

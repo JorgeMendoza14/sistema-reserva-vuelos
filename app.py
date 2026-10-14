@@ -167,5 +167,110 @@ def eliminar_pasajero(id_pasajero):
     return redirect(url_for("pasajeros"))
 
 
+@app.route("/aerolineas", methods=["GET", "POST"])
+def aerolineas():
+    if request.method == "POST":
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        cursor.execute(
+            """
+            INSERT INTO aerolineas (nombre, codigo, pais)
+            VALUES (%s, %s, %s)
+            """,
+            (
+                request.form["nombre"],
+                request.form["codigo"],
+                request.form["pais"],
+            ),
+        )
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        return redirect(url_for("aerolineas"))
+
+    conexion = obtener_conexion()
+    cursor = conexion.cursor(dictionary=True)
+    cursor.execute(
+        """
+        SELECT id_aerolinea, nombre, codigo, pais
+        FROM aerolineas
+        ORDER BY id_aerolinea
+        """
+    )
+    lista_aerolineas = cursor.fetchall()
+    cursor.close()
+    conexion.close()
+    return render_template("aerolineas.html", aerolineas=lista_aerolineas)
+
+
+@app.route("/aerolineas/editar/<int:id_aerolinea>", methods=["GET", "POST"])
+def editar_aerolinea(id_aerolinea):
+    conexion = obtener_conexion()
+    cursor = conexion.cursor(dictionary=True)
+
+    if request.method == "POST":
+        cursor.execute(
+            """
+            UPDATE aerolineas
+            SET nombre = %s, codigo = %s, pais = %s
+            WHERE id_aerolinea = %s
+            """,
+            (
+                request.form["nombre"],
+                request.form["codigo"],
+                request.form["pais"],
+                id_aerolinea,
+            ),
+        )
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        return redirect(url_for("aerolineas"))
+
+    cursor.execute(
+        """
+        SELECT id_aerolinea, nombre, codigo, pais
+        FROM aerolineas
+        WHERE id_aerolinea = %s
+        """,
+        (id_aerolinea,),
+    )
+    aerolinea_editar = cursor.fetchone()
+    if aerolinea_editar is None:
+        cursor.close()
+        conexion.close()
+        abort(404)
+
+    cursor.execute(
+        """
+        SELECT id_aerolinea, nombre, codigo, pais
+        FROM aerolineas
+        ORDER BY id_aerolinea
+        """
+    )
+    lista_aerolineas = cursor.fetchall()
+    cursor.close()
+    conexion.close()
+    return render_template(
+        "aerolineas.html",
+        aerolineas=lista_aerolineas,
+        aerolinea_editar=aerolinea_editar,
+    )
+
+
+@app.route("/aerolineas/eliminar/<int:id_aerolinea>", methods=["POST"])
+def eliminar_aerolinea(id_aerolinea):
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+    cursor.execute(
+        "DELETE FROM aerolineas WHERE id_aerolinea = %s",
+        (id_aerolinea,),
+    )
+    conexion.commit()
+    cursor.close()
+    conexion.close()
+    return redirect(url_for("aerolineas"))
+
+
 if __name__ == "__main__":
     app.run(debug=True)
