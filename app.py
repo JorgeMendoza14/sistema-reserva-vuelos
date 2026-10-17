@@ -272,5 +272,112 @@ def eliminar_aerolinea(id_aerolinea):
     return redirect(url_for("aerolineas"))
 
 
+@app.route("/aeropuertos", methods=["GET", "POST"])
+def aeropuertos():
+    if request.method == "POST":
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        cursor.execute(
+            """
+            INSERT INTO aeropuertos (nombre, codigo, ciudad, pais)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (
+                request.form["nombre"],
+                request.form["codigo"],
+                request.form["ciudad"],
+                request.form["pais"],
+            ),
+        )
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        return redirect(url_for("aeropuertos"))
+
+    conexion = obtener_conexion()
+    cursor = conexion.cursor(dictionary=True)
+    cursor.execute(
+        """
+        SELECT id_aeropuerto, nombre, codigo, ciudad, pais
+        FROM aeropuertos
+        ORDER BY id_aeropuerto
+        """
+    )
+    lista_aeropuertos = cursor.fetchall()
+    cursor.close()
+    conexion.close()
+    return render_template("aeropuertos.html", aeropuertos=lista_aeropuertos)
+
+
+@app.route("/aeropuertos/editar/<int:id_aeropuerto>", methods=["GET", "POST"])
+def editar_aeropuerto(id_aeropuerto):
+    conexion = obtener_conexion()
+    cursor = conexion.cursor(dictionary=True)
+
+    if request.method == "POST":
+        cursor.execute(
+            """
+            UPDATE aeropuertos
+            SET nombre = %s, codigo = %s, ciudad = %s, pais = %s
+            WHERE id_aeropuerto = %s
+            """,
+            (
+                request.form["nombre"],
+                request.form["codigo"],
+                request.form["ciudad"],
+                request.form["pais"],
+                id_aeropuerto,
+            ),
+        )
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        return redirect(url_for("aeropuertos"))
+
+    cursor.execute(
+        """
+        SELECT id_aeropuerto, nombre, codigo, ciudad, pais
+        FROM aeropuertos
+        WHERE id_aeropuerto = %s
+        """,
+        (id_aeropuerto,),
+    )
+    aeropuerto_editar = cursor.fetchone()
+    if aeropuerto_editar is None:
+        cursor.close()
+        conexion.close()
+        abort(404)
+
+    cursor.execute(
+        """
+        SELECT id_aeropuerto, nombre, codigo, ciudad, pais
+        FROM aeropuertos
+        ORDER BY id_aeropuerto
+        """
+    )
+    lista_aeropuertos = cursor.fetchall()
+    cursor.close()
+    conexion.close()
+    return render_template(
+        "aeropuertos.html",
+        aeropuertos=lista_aeropuertos,
+        aeropuerto_editar=aeropuerto_editar,
+    )
+
+
+@app.route("/aeropuertos/eliminar/<int:id_aeropuerto>", methods=["POST"])
+def eliminar_aeropuerto(id_aeropuerto):
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+    cursor.execute(
+        "DELETE FROM aeropuertos WHERE id_aeropuerto = %s",
+        (id_aeropuerto,),
+    )
+    conexion.commit()
+    cursor.close()
+    conexion.close()
+    return redirect(url_for("aeropuertos"))
+
+
 if __name__ == "__main__":
     app.run(debug=True)

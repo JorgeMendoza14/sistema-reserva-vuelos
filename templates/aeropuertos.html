@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aeropuertos | Agencia de Vuelos</title>
+</head>
+
+<body>
+    <h1>Aeropuertos</h1>
+    <p><a href="{{ url_for('inicio') }}">Volver a vuelos</a></p>
+
+    <h2>{{ 'Editar aeropuerto' if aeropuerto_editar else 'Registrar aeropuerto' }}</h2>
+    <form method="post" action="{{ url_for('editar_aeropuerto', id_aeropuerto=aeropuerto_editar.id_aeropuerto) if aeropuerto_editar else url_for('aeropuertos') }}">
+        <label for="nombre">Nombre</label>
+        <input id="nombre" name="nombre" type="text" required value="{{ aeropuerto_editar.nombre if aeropuerto_editar else '' }}">
+
+        <label for="codigo">Código</label>
+        <input id="codigo" name="codigo" type="text" required value="{{ aeropuerto_editar.codigo if aeropuerto_editar else '' }}">
+
+        <label for="ciudad">Ciudad</label>
+        <input id="ciudad" name="ciudad" type="text" required value="{{ aeropuerto_editar.ciudad if aeropuerto_editar else '' }}">
+
+        <label for="pais">País</label>
+        <input id="pais" name="pais" type="text" required value="{{ aeropuerto_editar.pais if aeropuerto_editar else '' }}">
+
+        <button type="submit">{{ 'Guardar cambios' if aeropuerto_editar else 'Registrar aeropuerto' }}</button>
+        {% if aeropuerto_editar %}
+        <a href="{{ url_for('aeropuertos') }}">Cancelar</a>
+        {% endif %}
+    </form>
+
+    <h2>Listado de aeropuertos</h2>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Nombre</th>
+                <th>Código</th>
+                <th>Ciudad</th>
+                <th>País</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for aeropuerto in aeropuertos %}
+            <tr>
+                <td>{{ aeropuerto.id_aeropuerto }}</td>
+                <td>{{ aeropuerto.nombre }}</td>
+                <td>{{ aeropuerto.codigo }}</td>
+                <td>{{ aeropuerto.ciudad }}</td>
+                <td>{{ aeropuerto.pais }}</td>
+                <td>
+                    <a href="{{ url_for('editar_aeropuerto', id_aeropuerto=aeropuerto.id_aeropuerto) }}">Editar</a>
+                    <form method="post" action="{{ url_for('eliminar_aeropuerto', id_aeropuerto=aeropuerto.id_aeropuerto) }}" style="display: inline;">
+                        <button type="submit">Eliminar</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6">No hay aeropuertos registrados.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+
+</html>
