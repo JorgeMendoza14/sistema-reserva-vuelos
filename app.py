@@ -11,6 +11,8 @@ app = Flask(__name__)
 
 ESTADOS_VUELO = ("Disponible", "Completo", "Cancelado", "Finalizado")
 ESTADOS_RESERVA = ("Pendiente", "Confirmada", "Cancelada")
+METODOS_PAGO = ("Efectivo", "Tarjeta", "Transferencia")
+ESTADOS_PAGO = ("Pendiente", "Pagado", "Reembolsado")
 
 
 def obtener_conexion():
@@ -192,6 +194,153 @@ def obtener_vuelo_bloqueado(cursor, id_vuelo):
         (id_vuelo,),
     )
     return cursor.fetchone()
+
+
+def validar_datos_pago(formulario):
+    try:
+        datos = {
+            "id_reserva": int(formulario.get("id_reserva", "")),
+            "metodo_pago": formulario.get("metodo_pago", ""),
+            "fecha_pago": formulario.get("fecha_pago", ""),
+            "estado": formulario.get("estado", ""),
+        }
+    except (TypeError, ValueError):
+        return None, "Selecciona una reserva válida."
+
+    if not datos["fecha_pago"]:
+        return None, "Indica la fecha del pago."
+    if datos["metodo_pago"] not in METODOS_PAGO:
+        return None, "Selecciona un método de pago válido."
+    if datos["estado"] not in ESTADOS_PAGO:
+        return None, "Selecciona un estado válido."
+    return datos, None
+
+
+def cargar_datos_pagos(cursor, formulario=None, pago_editar=None, error=None):
+    cursor.execute(
+        """
+        SELECT r.id_reserva, r.total, r.estado,
+               CONCAT(p.nombres, ' ', p.apellidos) AS nombre_pasajero,
+               v.numero_vuelo
+        FROM reservas r
+        INNER JOIN pasajeros p
+            ON r.id_pasajero = p.id_pasajero
+        INNER JOIN vuelos v
+            ON r.id_vuelo = v.id_vuelo
+        ORDER BY r.id_reserva
+        """
+    )
+    lista_reservas_pago = cursor.fetchall()
+
+    cursor.execute(
+        """
+        SELECT pg.id_pago, pg.id_reserva, pg.monto, pg.metodo_pago,
+               pg.fecha_pago, pg.estado,
+               CONCAT(p.nombres, ' ', p.apellidos) AS nombre_pasajero,
+               v.numero_vuelo, r.total AS total_reserva
+        FROM pagos pg
+        INNER JOIN reservas r
+            ON pg.id_reserva = r.id_reserva
+        INNER JOIN pasajeros p
+            ON r.id_pasajero = p.id_pasajero
+        INNER JOIN vuelos v
+            ON r.id_vuelo = v.id_vuelo
+        ORDER BY pg.id_pago
+        """
+    )
+    lista_pagos = cursor.fetchall()
+
+    return render_template(
+        "pagos.html",
+        pagos=lista_pagos,
+        reservas=lista_reservas_pago,
+        metodos_pago=METODOS_PAGO,
+        estados=ESTADOS_PAGO,
+        formulario=formulario or pago_editar or {},
+        pago_editar=pago_editar,
+        error=error,
+    )
+
+
+def obtener_reserva_pago_bloqueada(cursor, id_reserva):
+    cursor.execute(
+        """
+        SELECT id_reserva, total, estado, id_vuelo, cantidad_pasajeros
+        FROM reservas
+        WHERE id_reserva = %s
+        FOR UPDATE
+        """,
+        (id_reserva,),
+    )
+    return cursor.fetchone()
+
+
+def hay_otro_pago_pagado(cursor, id_reserva, id_pago=None):
+    cursor.execute(
+        """
+        SELECT id_pago
+        FROM pagos
+        WHERE id_reserva = %s AND estado = %s
+        """,
+        (id_reserva, "Pagado"),
+    )
+    return any(pago["id_pago"] != id_pago for pago in cursor.fetchall())
+
+
+def cambiar_reserva_por_pago(cursor, reserva, estado_pago, estado_anterior, otro_pago_pagado):
+    if estado_pago == "Pagado":
+        if reserva["estado"] == "Cancelada":
+            vuelo = obtener_vuelo_bloqueado(cursor, reserva["id_vuelo"])
+            if vuelo is None:
+                return "El vuelo de la reserva ya no existe."
+            if vuelo["asientos_disponibles"] < reserva["cantidad_pasajeros"]:
+                return "El vuelo no tiene suficientes asientos para reactivar la reserva."
+            cursor.execute(
+                """
+                UPDATE vuelos
+                SET asientos_disponibles = asientos_disponibles - %s
+                WHERE id_vuelo = %s AND asientos_disponibles >= %s
+                """,
+                (
+                    reserva["cantidad_pasajeros"],
+                    reserva["id_vuelo"],
+                    reserva["cantidad_pasajeros"],
+                ),
+            )
+            if cursor.rowcount != 1:
+                return "No se pudieron reservar los asientos del vuelo."
+        cursor.execute(
+            "UPDATE reservas SET estado = %s WHERE id_reserva = %s",
+            ("Confirmada", reserva["id_reserva"]),
+        )
+    elif estado_pago == "Reembolsado" and not otro_pago_pagado:
+        if reserva["estado"] != "Cancelada":
+            vuelo = obtener_vuelo_bloqueado(cursor, reserva["id_vuelo"])
+            if vuelo is None:
+                return "El vuelo de la reserva ya no existe."
+            cursor.execute(
+                """
+                UPDATE vuelos
+                SET asientos_disponibles = asientos_disponibles + %s
+                WHERE id_vuelo = %s
+                """,
+                (reserva["cantidad_pasajeros"], reserva["id_vuelo"]),
+            )
+            cursor.execute(
+                "UPDATE reservas SET estado = %s WHERE id_reserva = %s",
+                ("Cancelada", reserva["id_reserva"]),
+            )
+    elif (
+        estado_pago == "Pendiente"
+        and estado_anterior == "Pagado"
+        and not otro_pago_pagado
+        and reserva["estado"] == "Confirmada"
+    ):
+        cursor.execute(
+            "UPDATE reservas SET estado = %s WHERE id_reserva = %s",
+            ("Pendiente", reserva["id_reserva"]),
+        )
+    return None
 
 
 @app.route("/")
@@ -983,6 +1132,252 @@ def eliminar_reserva(id_reserva):
         cursor.close()
         conexion.close()
     return redirect(url_for("reservas"))
+
+
+@app.route("/pagos", methods=["GET", "POST"])
+def pagos():
+    if request.method == "GET":
+        conexion = obtener_conexion()
+        cursor = conexion.cursor(dictionary=True)
+        respuesta = cargar_datos_pagos(cursor)
+        cursor.close()
+        conexion.close()
+        return respuesta
+
+    datos, error = validar_datos_pago(request.form)
+    conexion = obtener_conexion()
+    cursor = conexion.cursor(dictionary=True)
+    if error:
+        respuesta = cargar_datos_pagos(cursor, formulario=request.form, error=error)
+        cursor.close()
+        conexion.close()
+        return respuesta, 400
+
+    try:
+        conexion.start_transaction()
+        reserva = obtener_reserva_pago_bloqueada(cursor, datos["id_reserva"])
+        if reserva is None:
+            error = "La reserva seleccionada no existe."
+        else:
+            otro_pago_pagado = hay_otro_pago_pagado(cursor, datos["id_reserva"])
+            if datos["estado"] == "Pagado" and otro_pago_pagado:
+                error = "Esta reserva ya tiene un pago en estado Pagado."
+
+        if not error:
+            monto = Decimal(str(reserva["total"]))
+            error = cambiar_reserva_por_pago(
+                cursor,
+                reserva,
+                datos["estado"],
+                None,
+                otro_pago_pagado,
+            )
+
+        if error:
+            conexion.rollback()
+            respuesta = cargar_datos_pagos(cursor, formulario=request.form, error=error)
+        else:
+            cursor.execute(
+                """
+                INSERT INTO pagos
+                    (id_reserva, monto, metodo_pago, fecha_pago, estado)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (
+                    datos["id_reserva"],
+                    monto,
+                    datos["metodo_pago"],
+                    datos["fecha_pago"],
+                    datos["estado"],
+                ),
+            )
+            conexion.commit()
+            respuesta = redirect(url_for("pagos"))
+    except Exception:
+        conexion.rollback()
+        raise
+    finally:
+        cursor.close()
+        conexion.close()
+
+    if error:
+        return respuesta, 400
+    return respuesta
+
+
+@app.route("/pagos/editar/<int:id_pago>", methods=["GET", "POST"])
+def editar_pago(id_pago):
+    conexion = obtener_conexion()
+    cursor = conexion.cursor(dictionary=True)
+
+    if request.method == "GET":
+        cursor.execute(
+            "SELECT * FROM pagos WHERE id_pago = %s",
+            (id_pago,),
+        )
+        pago_editar = cursor.fetchone()
+        if pago_editar is None:
+            cursor.close()
+            conexion.close()
+            abort(404)
+        respuesta = cargar_datos_pagos(cursor, pago_editar=pago_editar)
+        cursor.close()
+        conexion.close()
+        return respuesta
+
+    datos, error = validar_datos_pago(request.form)
+    if error:
+        cursor.execute(
+            "SELECT id_pago FROM pagos WHERE id_pago = %s",
+            (id_pago,),
+        )
+        if cursor.fetchone() is None:
+            cursor.close()
+            conexion.close()
+            abort(404)
+        respuesta = cargar_datos_pagos(
+            cursor,
+            formulario=request.form,
+            pago_editar={"id_pago": id_pago},
+            error=error,
+        )
+        cursor.close()
+        conexion.close()
+        return respuesta, 400
+
+    no_encontrado = False
+    try:
+        conexion.start_transaction()
+        cursor.execute(
+            "SELECT * FROM pagos WHERE id_pago = %s FOR UPDATE",
+            (id_pago,),
+        )
+        pago_actual = cursor.fetchone()
+        if pago_actual is None:
+            conexion.rollback()
+            no_encontrado = True
+        else:
+            ids_reserva = sorted({pago_actual["id_reserva"], datos["id_reserva"]})
+            reservas_bloqueadas = {}
+            for id_reserva in ids_reserva:
+                reservas_bloqueadas[id_reserva] = obtener_reserva_pago_bloqueada(
+                    cursor, id_reserva
+                )
+
+            reserva_nueva = reservas_bloqueadas[datos["id_reserva"]]
+            reserva_anterior = reservas_bloqueadas[pago_actual["id_reserva"]]
+            if reserva_nueva is None or reserva_anterior is None:
+                error = "La reserva seleccionada ya no existe."
+
+            otro_pago_pagado = False
+            if not error:
+                otro_pago_pagado = hay_otro_pago_pagado(
+                    cursor, datos["id_reserva"], id_pago
+                )
+                if datos["estado"] == "Pagado" and otro_pago_pagado:
+                    error = "Esta reserva ya tiene otro pago en estado Pagado."
+
+            if not error:
+                monto = Decimal(str(reserva_nueva["total"]))
+                estado_anterior = (
+                    pago_actual["estado"]
+                    if pago_actual["id_reserva"] == datos["id_reserva"]
+                    else None
+                )
+                error = cambiar_reserva_por_pago(
+                    cursor,
+                    reserva_nueva,
+                    datos["estado"],
+                    estado_anterior,
+                    otro_pago_pagado,
+                )
+
+            if not error:
+                if (
+                    pago_actual["id_reserva"] != datos["id_reserva"]
+                    and pago_actual["estado"] == "Pagado"
+                    and not hay_otro_pago_pagado(
+                        cursor, pago_actual["id_reserva"], id_pago
+                    )
+                    and reserva_anterior["estado"] == "Confirmada"
+                ):
+                    cursor.execute(
+                        "UPDATE reservas SET estado = %s WHERE id_reserva = %s",
+                        ("Pendiente", pago_actual["id_reserva"]),
+                    )
+
+                cursor.execute(
+                    """
+                    UPDATE pagos
+                    SET id_reserva = %s, monto = %s, metodo_pago = %s,
+                        fecha_pago = %s, estado = %s
+                    WHERE id_pago = %s
+                    """,
+                    (
+                        datos["id_reserva"],
+                        monto,
+                        datos["metodo_pago"],
+                        datos["fecha_pago"],
+                        datos["estado"],
+                        id_pago,
+                    ),
+                )
+                conexion.commit()
+                respuesta = redirect(url_for("pagos"))
+            else:
+                conexion.rollback()
+                respuesta = cargar_datos_pagos(
+                    cursor,
+                    formulario=request.form,
+                    pago_editar={"id_pago": id_pago},
+                    error=error,
+                )
+    except Exception:
+        conexion.rollback()
+        raise
+    finally:
+        cursor.close()
+        conexion.close()
+
+    if no_encontrado:
+        abort(404)
+    if error:
+        return respuesta, 400
+    return respuesta
+
+
+@app.route("/pagos/eliminar/<int:id_pago>", methods=["POST"])
+def eliminar_pago(id_pago):
+    conexion = obtener_conexion()
+    cursor = conexion.cursor(dictionary=True)
+    try:
+        conexion.start_transaction()
+        cursor.execute(
+            "SELECT * FROM pagos WHERE id_pago = %s FOR UPDATE",
+            (id_pago,),
+        )
+        pago = cursor.fetchone()
+        if pago is not None:
+            reserva = obtener_reserva_pago_bloqueada(cursor, pago["id_reserva"])
+            if (
+                reserva is not None
+                and pago["estado"] == "Pagado"
+                and not hay_otro_pago_pagado(cursor, pago["id_reserva"], id_pago)
+                and reserva["estado"] == "Confirmada"
+            ):
+                cursor.execute(
+                    "UPDATE reservas SET estado = %s WHERE id_reserva = %s",
+                    ("Pendiente", pago["id_reserva"]),
+                )
+            cursor.execute("DELETE FROM pagos WHERE id_pago = %s", (id_pago,))
+        conexion.commit()
+    except Exception:
+        conexion.rollback()
+        raise
+    finally:
+        cursor.close()
+        conexion.close()
+    return redirect(url_for("pagos"))
 
 
 if __name__ == "__main__":
