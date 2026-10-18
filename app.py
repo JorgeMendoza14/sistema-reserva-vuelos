@@ -10,6 +10,7 @@ load_dotenv()
 app = Flask(__name__)
 
 ESTADOS_VUELO = ("Disponible", "Completo", "Cancelado", "Finalizado")
+ESTADOS_RESERVA = ("Pendiente", "Confirmada", "Cancelada")
 
 
 def obtener_conexion():
@@ -98,6 +99,99 @@ def obtener_lista_vuelos(cursor):
         """
     )
     return cursor.fetchall()
+
+
+def validar_datos_reserva(formulario):
+    try:
+        datos = {
+            "id_pasajero": int(formulario.get("id_pasajero", "")),
+            "id_vuelo": int(formulario.get("id_vuelo", "")),
+            "fecha_reserva": formulario.get("fecha_reserva", ""),
+            "cantidad_pasajeros": int(formulario.get("cantidad_pasajeros", "")),
+            "estado": formulario.get("estado", ""),
+        }
+    except (TypeError, ValueError):
+        return None, "Selecciona un pasajero y un vuelo, e indica la cantidad."
+
+    if not datos["fecha_reserva"]:
+        return None, "Indica la fecha de la reserva."
+    if datos["cantidad_pasajeros"] <= 0:
+        return None, "La cantidad de pasajeros debe ser mayor que 0."
+    if datos["estado"] not in ESTADOS_RESERVA:
+        return None, "Selecciona un estado válido."
+    return datos, None
+
+
+def cargar_datos_reservas(cursor, formulario=None, reserva_editar=None, error=None):
+    cursor.execute(
+        """
+        SELECT id_pasajero, nombres, apellidos
+        FROM pasajeros
+        ORDER BY apellidos, nombres
+        """
+    )
+    lista_pasajeros = cursor.fetchall()
+
+    cursor.execute(
+        """
+        SELECT v.id_vuelo, v.numero_vuelo, v.precio, v.asientos_disponibles,
+               origen.ciudad AS ciudad_origen, origen.codigo AS codigo_origen,
+               destino.ciudad AS ciudad_destino, destino.codigo AS codigo_destino
+        FROM vuelos v
+        INNER JOIN aeropuertos origen
+            ON v.id_origen = origen.id_aeropuerto
+        INNER JOIN aeropuertos destino
+            ON v.id_destino = destino.id_aeropuerto
+        ORDER BY v.fecha_salida, v.hora_salida
+        """
+    )
+    lista_vuelos_reserva = cursor.fetchall()
+
+    cursor.execute(
+        """
+        SELECT r.id_reserva, r.id_pasajero, r.id_vuelo, r.fecha_reserva,
+               r.cantidad_pasajeros, r.total, r.estado,
+               CONCAT(p.nombres, ' ', p.apellidos) AS nombre_pasajero,
+               v.numero_vuelo,
+               origen.ciudad AS ciudad_origen, origen.codigo AS codigo_origen,
+               destino.ciudad AS ciudad_destino, destino.codigo AS codigo_destino
+        FROM reservas r
+        INNER JOIN pasajeros p
+            ON r.id_pasajero = p.id_pasajero
+        INNER JOIN vuelos v
+            ON r.id_vuelo = v.id_vuelo
+        INNER JOIN aeropuertos origen
+            ON v.id_origen = origen.id_aeropuerto
+        INNER JOIN aeropuertos destino
+            ON v.id_destino = destino.id_aeropuerto
+        ORDER BY r.id_reserva
+        """
+    )
+    lista_reservas = cursor.fetchall()
+
+    return render_template(
+        "reservas.html",
+        reservas=lista_reservas,
+        pasajeros=lista_pasajeros,
+        vuelos=lista_vuelos_reserva,
+        estados=ESTADOS_RESERVA,
+        formulario=formulario or reserva_editar or {},
+        reserva_editar=reserva_editar,
+        error=error,
+    )
+
+
+def obtener_vuelo_bloqueado(cursor, id_vuelo):
+    cursor.execute(
+        """
+        SELECT id_vuelo, precio, asientos_disponibles
+        FROM vuelos
+        WHERE id_vuelo = %s
+        FOR UPDATE
+        """,
+        (id_vuelo,),
+    )
+    return cursor.fetchone()
 
 
 @app.route("/")
@@ -621,6 +715,274 @@ def eliminar_vuelo(id_vuelo):
     cursor.close()
     conexion.close()
     return redirect(url_for("vuelos"))
+
+
+@app.route("/reservas", methods=["GET", "POST"])
+def reservas():
+    if request.method == "GET":
+        conexion = obtener_conexion()
+        cursor = conexion.cursor(dictionary=True)
+        respuesta = cargar_datos_reservas(cursor)
+        cursor.close()
+        conexion.close()
+        return respuesta
+
+    datos, error = validar_datos_reserva(request.form)
+    conexion = obtener_conexion()
+    cursor = conexion.cursor(dictionary=True)
+    if error:
+        respuesta = cargar_datos_reservas(cursor, formulario=request.form, error=error)
+        cursor.close()
+        conexion.close()
+        return respuesta, 400
+
+    try:
+        conexion.start_transaction()
+        vuelo = obtener_vuelo_bloqueado(cursor, datos["id_vuelo"])
+        if vuelo is None:
+            error = "El vuelo seleccionado no existe."
+        elif (
+            datos["estado"] != "Cancelada"
+            and vuelo["asientos_disponibles"] < datos["cantidad_pasajeros"]
+        ):
+            error = "El vuelo no tiene suficientes asientos disponibles."
+
+        if error:
+            conexion.rollback()
+            respuesta = cargar_datos_reservas(cursor, formulario=request.form, error=error)
+        else:
+            if datos["estado"] != "Cancelada":
+                cursor.execute(
+                    """
+                    UPDATE vuelos
+                    SET asientos_disponibles = asientos_disponibles - %s
+                    WHERE id_vuelo = %s AND asientos_disponibles >= %s
+                    """,
+                    (
+                        datos["cantidad_pasajeros"],
+                        datos["id_vuelo"],
+                        datos["cantidad_pasajeros"],
+                    ),
+                )
+                if cursor.rowcount != 1:
+                    raise RuntimeError("No se pudieron descontar los asientos.")
+
+            total = Decimal(str(vuelo["precio"])) * datos["cantidad_pasajeros"]
+            cursor.execute(
+                """
+                INSERT INTO reservas
+                    (id_pasajero, id_vuelo, fecha_reserva,
+                     cantidad_pasajeros, total, estado)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    datos["id_pasajero"],
+                    datos["id_vuelo"],
+                    datos["fecha_reserva"],
+                    datos["cantidad_pasajeros"],
+                    total,
+                    datos["estado"],
+                ),
+            )
+            conexion.commit()
+            respuesta = redirect(url_for("reservas"))
+    except Exception:
+        conexion.rollback()
+        raise
+    finally:
+        cursor.close()
+        conexion.close()
+
+    if error:
+        return respuesta, 400
+    return respuesta
+
+
+@app.route("/reservas/editar/<int:id_reserva>", methods=["GET", "POST"])
+def editar_reserva(id_reserva):
+    conexion = obtener_conexion()
+    cursor = conexion.cursor(dictionary=True)
+
+    if request.method == "GET":
+        cursor.execute(
+            "SELECT * FROM reservas WHERE id_reserva = %s",
+            (id_reserva,),
+        )
+        reserva_editar = cursor.fetchone()
+        if reserva_editar is None:
+            cursor.close()
+            conexion.close()
+            abort(404)
+
+        respuesta = cargar_datos_reservas(cursor, reserva_editar=reserva_editar)
+        cursor.close()
+        conexion.close()
+        return respuesta
+
+    datos, error = validar_datos_reserva(request.form)
+    if error:
+        cursor.execute(
+            "SELECT id_reserva FROM reservas WHERE id_reserva = %s",
+            (id_reserva,),
+        )
+        if cursor.fetchone() is None:
+            cursor.close()
+            conexion.close()
+            abort(404)
+        respuesta = cargar_datos_reservas(
+            cursor,
+            formulario=request.form,
+            reserva_editar={"id_reserva": id_reserva},
+            error=error,
+        )
+        cursor.close()
+        conexion.close()
+        return respuesta, 400
+
+    no_encontrada = False
+    try:
+        conexion.start_transaction()
+        cursor.execute(
+            """
+            SELECT id_vuelo, cantidad_pasajeros, estado
+            FROM reservas
+            WHERE id_reserva = %s
+            FOR UPDATE
+            """,
+            (id_reserva,),
+        )
+        reserva_actual = cursor.fetchone()
+        if reserva_actual is None:
+            conexion.rollback()
+            no_encontrada = True
+        else:
+            id_vuelos = sorted({reserva_actual["id_vuelo"], datos["id_vuelo"]})
+            vuelos_bloqueados = {}
+            for id_vuelo in id_vuelos:
+                vuelos_bloqueados[id_vuelo] = obtener_vuelo_bloqueado(cursor, id_vuelo)
+
+            vuelo_nuevo = vuelos_bloqueados[datos["id_vuelo"]]
+            if vuelo_nuevo is None:
+                error = "El vuelo seleccionado no existe."
+            else:
+                cambios_asientos = {}
+                if reserva_actual["estado"] != "Cancelada":
+                    cambios_asientos[reserva_actual["id_vuelo"]] = (
+                        reserva_actual["cantidad_pasajeros"]
+                    )
+                if datos["estado"] != "Cancelada":
+                    id_vuelo_nuevo = datos["id_vuelo"]
+                    cambios_asientos[id_vuelo_nuevo] = (
+                        cambios_asientos.get(id_vuelo_nuevo, 0)
+                        - datos["cantidad_pasajeros"]
+                    )
+
+                for id_vuelo, cambio in cambios_asientos.items():
+                    vuelo_bloqueado = vuelos_bloqueados[id_vuelo]
+                    asientos_finales = vuelo_bloqueado["asientos_disponibles"] + cambio
+                    if asientos_finales < 0:
+                        error = "El vuelo no tiene suficientes asientos disponibles."
+                        break
+
+            if error:
+                conexion.rollback()
+                respuesta = cargar_datos_reservas(
+                    cursor,
+                    formulario=request.form,
+                    reserva_editar={"id_reserva": id_reserva},
+                    error=error,
+                )
+            else:
+                for id_vuelo, cambio in cambios_asientos.items():
+                    if cambio:
+                        asientos_finales = (
+                            vuelos_bloqueados[id_vuelo]["asientos_disponibles"] + cambio
+                        )
+                        cursor.execute(
+                            """
+                            UPDATE vuelos
+                            SET asientos_disponibles = %s
+                            WHERE id_vuelo = %s AND %s >= 0
+                            """,
+                            (asientos_finales, id_vuelo, asientos_finales),
+                        )
+                        if cursor.rowcount != 1:
+                            raise RuntimeError("No se pudieron actualizar los asientos.")
+
+                total = Decimal(str(vuelo_nuevo["precio"])) * datos["cantidad_pasajeros"]
+                cursor.execute(
+                    """
+                    UPDATE reservas
+                    SET id_pasajero = %s, id_vuelo = %s, fecha_reserva = %s,
+                        cantidad_pasajeros = %s, total = %s, estado = %s
+                    WHERE id_reserva = %s
+                    """,
+                    (
+                        datos["id_pasajero"],
+                        datos["id_vuelo"],
+                        datos["fecha_reserva"],
+                        datos["cantidad_pasajeros"],
+                        total,
+                        datos["estado"],
+                        id_reserva,
+                    ),
+                )
+                conexion.commit()
+                respuesta = redirect(url_for("reservas"))
+    except Exception:
+        conexion.rollback()
+        raise
+    finally:
+        cursor.close()
+        conexion.close()
+
+    if no_encontrada:
+        abort(404)
+    if error:
+        return respuesta, 400
+    return respuesta
+
+
+@app.route("/reservas/eliminar/<int:id_reserva>", methods=["POST"])
+def eliminar_reserva(id_reserva):
+    conexion = obtener_conexion()
+    cursor = conexion.cursor(dictionary=True)
+    try:
+        conexion.start_transaction()
+        cursor.execute(
+            """
+            SELECT id_vuelo, cantidad_pasajeros, estado
+            FROM reservas
+            WHERE id_reserva = %s
+            FOR UPDATE
+            """,
+            (id_reserva,),
+        )
+        reserva = cursor.fetchone()
+        if reserva is not None:
+            if reserva["estado"] != "Cancelada":
+                vuelo = obtener_vuelo_bloqueado(cursor, reserva["id_vuelo"])
+                if vuelo is not None:
+                    cursor.execute(
+                        """
+                        UPDATE vuelos
+                        SET asientos_disponibles = asientos_disponibles + %s
+                        WHERE id_vuelo = %s
+                        """,
+                        (reserva["cantidad_pasajeros"], reserva["id_vuelo"]),
+                    )
+            cursor.execute(
+                "DELETE FROM reservas WHERE id_reserva = %s",
+                (id_reserva,),
+            )
+        conexion.commit()
+    except Exception:
+        conexion.rollback()
+        raise
+    finally:
+        cursor.close()
+        conexion.close()
+    return redirect(url_for("reservas"))
 
 
 if __name__ == "__main__":
