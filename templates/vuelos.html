@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vuelos | Agencia de Vuelos</title>
+</head>
+
+<body>
+    <h1>Vuelos</h1>
+    <p><a href="{{ url_for('inicio') }}">Volver al inicio</a></p>
+
+    <h2>{{ 'Editar vuelo' if vuelo_editar else 'Registrar vuelo' }}</h2>
+    {% if error %}
+    <p role="alert">{{ error }}</p>
+    {% endif %}
+    <form method="post" action="{{ url_for('editar_vuelo', id_vuelo=vuelo_editar.id_vuelo) if vuelo_editar else url_for('vuelos') }}">
+        <label for="numero_vuelo">Número de vuelo</label>
+        <input id="numero_vuelo" name="numero_vuelo" type="text" required value="{{ datos_formulario.numero_vuelo if datos_formulario else '' }}">
+
+        <label for="id_aerolinea">Aerolínea</label>
+        <select id="id_aerolinea" name="id_aerolinea" required>
+            <option value="">Selecciona una aerolínea</option>
+            {% for aerolinea in aerolineas %}
+            <option value="{{ aerolinea.id_aerolinea }}" {% if datos_formulario and datos_formulario.id_aerolinea|string == aerolinea.id_aerolinea|string %}selected{% endif %}>{{ aerolinea.nombre }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="id_origen">Aeropuerto de origen</label>
+        <select id="id_origen" name="id_origen" required>
+            <option value="">Selecciona el origen</option>
+            {% for aeropuerto in aeropuertos %}
+            <option value="{{ aeropuerto.id_aeropuerto }}" {% if datos_formulario and datos_formulario.id_origen|string == aeropuerto.id_aeropuerto|string %}selected{% endif %}>{{ aeropuerto.ciudad }} ({{ aeropuerto.codigo }})</option>
+            {% endfor %}
+        </select>
+
+        <label for="id_destino">Aeropuerto de destino</label>
+        <select id="id_destino" name="id_destino" required>
+            <option value="">Selecciona el destino</option>
+            {% for aeropuerto in aeropuertos %}
+            <option value="{{ aeropuerto.id_aeropuerto }}" {% if datos_formulario and datos_formulario.id_destino|string == aeropuerto.id_aeropuerto|string %}selected{% endif %}>{{ aeropuerto.ciudad }} ({{ aeropuerto.codigo }})</option>
+            {% endfor %}
+        </select>
+
+        <label for="fecha_salida">Fecha de salida</label>
+        <input id="fecha_salida" name="fecha_salida" type="date" required value="{{ datos_formulario.fecha_salida if datos_formulario else '' }}">
+
+        <label for="hora_salida">Hora de salida</label>
+        <input id="hora_salida" name="hora_salida" type="time" required value="{{ datos_formulario.hora_salida if datos_formulario else '' }}">
+
+        <label for="fecha_llegada">Fecha de llegada</label>
+        <input id="fecha_llegada" name="fecha_llegada" type="date" required value="{{ datos_formulario.fecha_llegada if datos_formulario else '' }}">
+
+        <label for="hora_llegada">Hora de llegada</label>
+        <input id="hora_llegada" name="hora_llegada" type="time" required value="{{ datos_formulario.hora_llegada if datos_formulario else '' }}">
+
+        <label for="precio">Precio</label>
+        <input id="precio" name="precio" type="number" min="0.01" step="0.01" required value="{{ datos_formulario.precio if datos_formulario else '' }}">
+
+        <label for="asientos_disponibles">Asientos disponibles</label>
+        <input id="asientos_disponibles" name="asientos_disponibles" type="number" min="0" step="1" required value="{{ datos_formulario.asientos_disponibles if datos_formulario else '' }}">
+
+        <label for="estado">Estado</label>
+        <select id="estado" name="estado" required>
+            <option value="">Selecciona un estado</option>
+            {% for estado in estados %}
+            <option value="{{ estado }}" {% if datos_formulario and datos_formulario.estado == estado %}selected{% endif %}>{{ estado }}</option>
+            {% endfor %}
+        </select>
+
+        <button type="submit">{{ 'Guardar cambios' if vuelo_editar else 'Registrar vuelo' }}</button>
+        {% if vuelo_editar %}
+        <a href="{{ url_for('vuelos') }}">Cancelar</a>
+        {% endif %}
+    </form>
+
+    <h2>Listado de vuelos</h2>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Número</th>
+                <th>Aerolínea</th>
+                <th>Origen</th>
+                <th>Destino</th>
+                <th>Fecha de salida</th>
+                <th>Hora de salida</th>
+                <th>Fecha de llegada</th>
+                <th>Hora de llegada</th>
+                <th>Precio</th>
+                <th>Asientos</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for vuelo in vuelos %}
+            <tr>
+                <td>{{ vuelo.id_vuelo }}</td>
+                <td>{{ vuelo.numero_vuelo }}</td>
+                <td>{{ vuelo.aerolinea }}</td>
+                <td>{{ vuelo.ciudad_origen }} ({{ vuelo.codigo_origen }})</td>
+                <td>{{ vuelo.ciudad_destino }} ({{ vuelo.codigo_destino }})</td>
+                <td>{{ vuelo.fecha_salida }}</td>
+                <td>{{ vuelo.hora_salida }}</td>
+                <td>{{ vuelo.fecha_llegada }}</td>
+                <td>{{ vuelo.hora_llegada }}</td>
+                <td>{{ vuelo.precio }}</td>
+                <td>{{ vuelo.asientos_disponibles }}</td>
+                <td>{{ vuelo.estado }}</td>
+                <td>
+                    <a href="{{ url_for('editar_vuelo', id_vuelo=vuelo.id_vuelo) }}">Editar</a>
+                    <form method="post" action="{{ url_for('eliminar_vuelo', id_vuelo=vuelo.id_vuelo) }}" style="display: inline;">
+                        <button type="submit">Eliminar</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="13">No hay vuelos registrados.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+
+</html>
