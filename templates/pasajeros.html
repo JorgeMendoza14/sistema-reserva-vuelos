@@ -1,80 +1,46 @@
-<!DOCTYPE html>
-<html lang="es">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pasajeros | Agencia de Vuelos</title>
-</head>
+{% block title %}Pasajeros | Agencia de Vuelos{% endblock %}
 
-<body>
-    <h1>Pasajeros</h1>
-    <p><a href="{{ url_for('inicio') }}">Volver a vuelos</a></p>
+{% block content %}
+<div class="page-heading">
+    <div><p class="page-kicker">GESTIÓN</p><h1>Pasajeros</h1><p>Administra los datos de los viajeros.</p></div>
+</div>
 
-    <h2>{{ 'Editar pasajero' if pasajero_editar else 'Registrar pasajero' }}</h2>
-    <form method="post" action="{{ url_for('editar_pasajero', id_pasajero=pasajero_editar.id_pasajero) if pasajero_editar else url_for('pasajeros') }}">
-        <label for="cedula">Cédula</label>
-        <input id="cedula" name="cedula" type="text" required value="{{ pasajero_editar.cedula if pasajero_editar else '' }}">
+<section class="panel">
+    <div class="panel-header"><div><h2>{{ 'Editar pasajero' if pasajero_editar else 'Registrar pasajero' }}</h2><p>Completa la información del pasajero.</p></div></div>
+    <div class="panel-body">
+        <form method="post" action="{{ url_for('editar_pasajero', id_pasajero=pasajero_editar.id_pasajero) if pasajero_editar else url_for('pasajeros') }}">
+            <div class="row g-3">
+                <div class="col-md-4"><label class="form-label" for="cedula">Cédula</label><input class="form-control" id="cedula" name="cedula" type="text" required value="{{ pasajero_editar.cedula if pasajero_editar else '' }}"></div>
+                <div class="col-md-4"><label class="form-label" for="nombres">Nombres</label><input class="form-control" id="nombres" name="nombres" type="text" required value="{{ pasajero_editar.nombres if pasajero_editar else '' }}"></div>
+                <div class="col-md-4"><label class="form-label" for="apellidos">Apellidos</label><input class="form-control" id="apellidos" name="apellidos" type="text" required value="{{ pasajero_editar.apellidos if pasajero_editar else '' }}"></div>
+                <div class="col-md-4"><label class="form-label" for="telefono">Teléfono</label><input class="form-control" id="telefono" name="telefono" type="tel" required value="{{ pasajero_editar.telefono if pasajero_editar else '' }}"></div>
+                <div class="col-md-4"><label class="form-label" for="correo">Correo</label><input class="form-control" id="correo" name="correo" type="email" required value="{{ pasajero_editar.correo if pasajero_editar else '' }}"></div>
+                <div class="col-md-4"><label class="form-label" for="fecha_nacimiento">Fecha de nacimiento</label><input class="form-control" id="fecha_nacimiento" name="fecha_nacimiento" type="date" required value="{{ pasajero_editar.fecha_nacimiento if pasajero_editar else '' }}"></div>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-4">
+                <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>{{ 'Guardar cambios' if pasajero_editar else 'Registrar pasajero' }}</button>
+                {% if pasajero_editar %}<a class="btn btn-outline-secondary" href="{{ url_for('pasajeros') }}">Cancelar</a>{% endif %}
+            </div>
+        </form>
+    </div>
+</section>
 
-        <label for="nombres">Nombres</label>
-        <input id="nombres" name="nombres" type="text" required value="{{ pasajero_editar.nombres if pasajero_editar else '' }}">
-
-        <label for="apellidos">Apellidos</label>
-        <input id="apellidos" name="apellidos" type="text" required value="{{ pasajero_editar.apellidos if pasajero_editar else '' }}">
-
-        <label for="telefono">Teléfono</label>
-        <input id="telefono" name="telefono" type="tel" required value="{{ pasajero_editar.telefono if pasajero_editar else '' }}">
-
-        <label for="correo">Correo</label>
-        <input id="correo" name="correo" type="email" required value="{{ pasajero_editar.correo if pasajero_editar else '' }}">
-
-        <label for="fecha_nacimiento">Fecha de nacimiento</label>
-        <input id="fecha_nacimiento" name="fecha_nacimiento" type="date" required value="{{ pasajero_editar.fecha_nacimiento if pasajero_editar else '' }}">
-
-        <button type="submit">{{ 'Guardar cambios' if pasajero_editar else 'Registrar pasajero' }}</button>
-        {% if pasajero_editar %}
-        <a href="{{ url_for('pasajeros') }}">Cancelar</a>
-        {% endif %}
-    </form>
-
-    <h2>Listado de pasajeros</h2>
-    <table border="1">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Cédula</th>
-                <th>Nombres</th>
-                <th>Apellidos</th>
-                <th>Teléfono</th>
-                <th>Correo</th>
-                <th>Fecha de nacimiento</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for pasajero in pasajeros %}
-            <tr>
-                <td>{{ pasajero.id_pasajero }}</td>
-                <td>{{ pasajero.cedula }}</td>
-                <td>{{ pasajero.nombres }}</td>
-                <td>{{ pasajero.apellidos }}</td>
-                <td>{{ pasajero.telefono }}</td>
-                <td>{{ pasajero.correo }}</td>
-                <td>{{ pasajero.fecha_nacimiento }}</td>
-                <td>
-                    <a href="{{ url_for('editar_pasajero', id_pasajero=pasajero.id_pasajero) }}">Editar</a>
-                    <form method="post" action="{{ url_for('eliminar_pasajero', id_pasajero=pasajero.id_pasajero) }}" style="display: inline;">
-                        <button type="submit">Eliminar</button>
-                    </form>
-                </td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="8">No hay pasajeros registrados.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</body>
-
-</html>
+<section class="panel table-panel">
+    <div class="panel-header"><div><h2>Listado de pasajeros</h2><p>Pasajeros registrados en el sistema.</p></div></div>
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead><tr><th>ID</th><th>Cédula</th><th>Nombres</th><th>Apellidos</th><th>Teléfono</th><th>Correo</th><th>Fecha de nacimiento</th><th>Acciones</th></tr></thead>
+            <tbody>
+                {% for pasajero in pasajeros %}
+                <tr>
+                    <td>{{ pasajero.id_pasajero }}</td><td>{{ pasajero.cedula }}</td><td>{{ pasajero.nombres }}</td><td>{{ pasajero.apellidos }}</td><td>{{ pasajero.telefono }}</td><td>{{ pasajero.correo }}</td><td>{{ pasajero.fecha_nacimiento }}</td>
+                    <td><div class="table-actions"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('editar_pasajero', id_pasajero=pasajero.id_pasajero) }}"><i class="bi bi-pencil me-1"></i>Editar</a><form method="post" action="{{ url_for('eliminar_pasajero', id_pasajero=pasajero.id_pasajero) }}" data-confirm="¿Eliminar este pasajero?"><button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash me-1"></i>Eliminar</button></form></div></td>
+                </tr>
+                {% else %}<tr><td class="empty-row" colspan="8">No hay pasajeros registrados.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

@@ -1,55 +1,44 @@
-<!DOCTYPE html>
-<html lang="es">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel administrativo | Agencia de Vuelos</title>
-</head>
+{% block title %}Dashboard | Agencia de Vuelos{% endblock %}
 
-<body>
-    <h1>Panel administrativo</h1>
-    <p>Bienvenido, {{ usuario }}</p>
+{% block content %}
+<section class="dashboard-welcome">
+    <p class="page-kicker">Panel administrativo</p>
+    <h1>Buen día, {{ usuario }}</h1>
+</section>
 
-    <nav>
-        <a href="{{ url_for('pasajeros') }}">Pasajeros</a>
-        | <a href="{{ url_for('aerolineas') }}">Aerolíneas</a>
-        | <a href="{{ url_for('aeropuertos') }}">Aeropuertos</a>
-        | <a href="{{ url_for('vuelos') }}">Vuelos</a>
-        | <a href="{{ url_for('reservas') }}">Reservas</a>
-        | <a href="{{ url_for('pagos') }}">Pagos</a>
-        | <a href="{{ url_for('logout') }}">Cerrar sesión</a>
-    </nav>
+<div class="page-heading">
+    <div>
+        <p class="page-kicker">RESUMEN GENERAL</p>
+        <h1>Dashboard</h1>
+    </div>
+</div>
 
-    <h2>Resumen</h2>
-    <table border="1">
-        <tbody>
-            <tr>
-                <th>Total de pasajeros</th>
-                <td>{{ estadisticas.total_pasajeros }}</td>
-            </tr>
-            <tr>
-                <th>Total de vuelos</th>
-                <td>{{ estadisticas.total_vuelos }}</td>
-            </tr>
-            <tr>
-                <th>Total de reservas</th>
-                <td>{{ estadisticas.total_reservas }}</td>
-            </tr>
-            <tr>
-                <th>Reservas pendientes</th>
-                <td>{{ estadisticas.reservas_pendientes }}</td>
-            </tr>
-            <tr>
-                <th>Pagos realizados</th>
-                <td>{{ estadisticas.pagos_realizados }}</td>
-            </tr>
-            <tr>
-                <th>Ingresos de pagos realizados</th>
-                <td>${{ estadisticas.ingresos_totales }}</td>
-            </tr>
-        </tbody>
-    </table>
-</body>
-
-</html>
+<section class="stats-grid" aria-label="Estadísticas">
+    <article class="stat-card" style="--stat-color: #188c80; --stat-tint: #e6f3ef;">
+        <div class="stat-topline"><span class="stat-label">Total de pasajeros</span><span class="stat-icon"><i class="bi bi-people-fill"></i></span></div>
+        <div class="stat-value">{{ estadisticas.total_pasajeros }}</div>
+    </article>
+    <article class="stat-card" style="--stat-color: #bd7730; --stat-tint: #fff2dd;">
+        <div class="stat-topline"><span class="stat-label">Total de vuelos</span><span class="stat-icon"><i class="bi bi-airplane-fill"></i></span></div>
+        <div class="stat-value">{{ estadisticas.total_vuelos }}</div>
+    </article>
+    <article class="stat-card" style="--stat-color: #627cbb; --stat-tint: #edf0fb;">
+        <div class="stat-topline"><span class="stat-label">Total de reservas</span><span class="stat-icon"><i class="bi bi-journal-check"></i></span></div>
+        <div class="stat-value">{{ estadisticas.total_reservas }}</div>
+    </article>
+    <article class="stat-card" style="--stat-color: #c17a26; --stat-tint: #fff4dc;">
+        <div class="stat-topline"><span class="stat-label">Reservas pendientes</span><span class="stat-icon"><i class="bi bi-hourglass-split"></i></span></div>
+        <div class="stat-value">{{ estadisticas.reservas_pendientes }}</div>
+    </article>
+    <article class="stat-card" style="--stat-color: #238279; --stat-tint: #e5f3f0;">
+        <div class="stat-topline"><span class="stat-label">Pagos realizados</span><span class="stat-icon"><i class="bi bi-credit-card-2-front-fill"></i></span></div>
+        <div class="stat-value">{{ estadisticas.pagos_realizados }}</div>
+    </article>
+    <article class="stat-card" style="--stat-color: #c85e47; --stat-tint: #fff0eb;">
+        <div class="stat-topline"><span class="stat-label">Ingresos totales</span><span class="stat-icon"><i class="bi bi-currency-dollar"></i></span></div>
+        <div class="stat-value">${{ estadisticas.ingresos_totales }}</div>
+    </article>
+</section>
+{% endblock %}

@@ -1,64 +1,47 @@
-<!DOCTYPE html>
-<html lang="es">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+{% block title %}Vuelos disponibles | Agencia de Vuelos{% endblock %}
 
-    <title>Agencia de Vuelos</title>
-</head>
+{% block content %}
+<div class="page-heading">
+    <div>
+        <p class="page-kicker">OPERACIONES</p>
+        <h1>Vuelos disponibles</h1>
+    </div>
+</div>
 
-<body>
-
-    <h1>✈️ Agencia de Vuelos</h1>
-
-    <p>
-        <a href="{{ url_for('pasajeros') }}">Administrar pasajeros</a>
-        | <a href="{{ url_for('aerolineas') }}">Administrar aerolíneas</a>
-        | <a href="{{ url_for('aeropuertos') }}">Administrar aeropuertos</a>
-        | <a href="{{ url_for('vuelos') }}">Administrar vuelos</a>
-        | <a href="{{ url_for('reservas') }}">Administrar reservas</a>
-        | <a href="{{ url_for('pagos') }}">Administrar pagos</a>
-    </p>
-
-    <h2>Vuelos disponibles</h2>
-
-    <table border="1">
-
-        <thead>
-            <tr>
-                <th>Vuelo</th>
-                <th>Aerolínea</th>
-                <th>Origen</th>
-                <th>Destino</th>
-                <th>Fecha</th>
-                <th>Hora</th>
-                <th>Precio</th>
-                <th>Asientos</th>
-            </tr>
-        </thead>
-
-        <tbody>
-
-            {% for vuelo in vuelos %}
-
-            <tr>
-                <td>{{ vuelo.numero_vuelo }}</td>
-                <td>{{ vuelo.aerolinea }}</td>
-                <td>{{ vuelo.origen }}</td>
-                <td>{{ vuelo.destino }}</td>
-                <td>{{ vuelo.fecha_salida }}</td>
-                <td>{{ vuelo.hora_salida }}</td>
-                <td>${{ vuelo.precio }}</td>
-                <td>{{ vuelo.asientos_disponibles }}</td>
-            </tr>
-
-            {% endfor %}
-
-        </tbody>
-
-    </table>
-
-</body>
-
-</html>
+<section class="panel table-panel">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Vuelo</th>
+                    <th>Aerolínea</th>
+                    <th>Origen</th>
+                    <th>Destino</th>
+                    <th>Fecha</th>
+                    <th>Hora</th>
+                    <th>Precio</th>
+                    <th>Asientos</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for vuelo in vuelos %}
+                <tr>
+                    <td class="fw-semibold">{{ vuelo.numero_vuelo }}</td>
+                    <td>{{ vuelo.aerolinea }}</td>
+                    <td>{{ vuelo.origen }}</td>
+                    <td>{{ vuelo.destino }}</td>
+                    <td>{{ vuelo.fecha_salida }}</td>
+                    <td>{{ vuelo.hora_salida }}</td>
+                    <td>${{ vuelo.precio }}</td>
+                    <td>{{ vuelo.asientos_disponibles }}</td>
+                </tr>
+                {% else %}
+                <tr><td class="empty-row" colspan="8">No hay vuelos disponibles.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

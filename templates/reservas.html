@@ -1,99 +1,33 @@
-<!DOCTYPE html>
-<html lang="es">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reservas | Agencia de Vuelos</title>
-</head>
+{% block title %}Reservas | Agencia de Vuelos{% endblock %}
 
-<body>
-    <h1>Reservas</h1>
-    <p><a href="{{ url_for('inicio') }}">Volver al inicio</a></p>
+{% block content %}
+<div class="page-heading"><div><p class="page-kicker">GESTIÓN</p><h1>Reservas</h1><p>Administra pasajeros y plazas asignadas.</p></div></div>
 
-    <h2>{{ 'Editar reserva' if reserva_editar else 'Registrar reserva' }}</h2>
-    {% if error %}
-    <p role="alert">{{ error }}</p>
-    {% endif %}
-    <form method="post" action="{{ url_for('editar_reserva', id_reserva=reserva_editar.id_reserva) if reserva_editar else url_for('reservas') }}">
-        <label for="id_pasajero">Pasajero</label>
-        <select id="id_pasajero" name="id_pasajero" required>
-            <option value="">Selecciona un pasajero</option>
-            {% for pasajero in pasajeros %}
-            <option value="{{ pasajero.id_pasajero }}" {% if formulario and formulario.id_pasajero|string == pasajero.id_pasajero|string %}selected{% endif %}>{{ pasajero.nombres }} {{ pasajero.apellidos }}</option>
-            {% endfor %}
-        </select>
+<section class="panel">
+    <div class="panel-header"><div><h2>{{ 'Editar reserva' if reserva_editar else 'Registrar reserva' }}</h2><p>Selecciona pasajero, vuelo y estado.</p></div></div>
+    <div class="panel-body">
+        {% if error %}<div class="alert alert-danger py-2 small" role="alert">{{ error }}</div>{% endif %}
+        <form method="post" action="{{ url_for('editar_reserva', id_reserva=reserva_editar.id_reserva) if reserva_editar else url_for('reservas') }}">
+            <div class="row g-3">
+                <div class="col-md-6"><label class="form-label" for="id_pasajero">Pasajero</label><select class="form-select" id="id_pasajero" name="id_pasajero" required><option value="">Selecciona un pasajero</option>{% for pasajero in pasajeros %}<option value="{{ pasajero.id_pasajero }}" {% if formulario and formulario.id_pasajero|string == pasajero.id_pasajero|string %}selected{% endif %}>{{ pasajero.nombres }} {{ pasajero.apellidos }}</option>{% endfor %}</select></div>
+                <div class="col-md-6"><label class="form-label" for="id_vuelo">Vuelo</label><select class="form-select" id="id_vuelo" name="id_vuelo" required><option value="">Selecciona un vuelo</option>{% for vuelo in vuelos %}<option value="{{ vuelo.id_vuelo }}" {% if formulario and formulario.id_vuelo|string == vuelo.id_vuelo|string %}selected{% endif %}>{{ vuelo.numero_vuelo }}: {{ vuelo.ciudad_origen }} ({{ vuelo.codigo_origen }}) a {{ vuelo.ciudad_destino }} ({{ vuelo.codigo_destino }}) | {{ vuelo.asientos_disponibles }} asientos | ${{ vuelo.precio }}</option>{% endfor %}</select></div>
+                <div class="col-md-4"><label class="form-label" for="fecha_reserva">Fecha de reserva</label><input class="form-control" id="fecha_reserva" name="fecha_reserva" type="date" required value="{{ formulario.fecha_reserva if formulario else '' }}"></div>
+                <div class="col-md-4"><label class="form-label" for="cantidad_pasajeros">Cantidad de pasajeros</label><input class="form-control" id="cantidad_pasajeros" name="cantidad_pasajeros" type="number" min="1" step="1" required value="{{ formulario.cantidad_pasajeros if formulario else '' }}"></div>
+                <div class="col-md-4"><label class="form-label" for="estado">Estado</label><select class="form-select" id="estado" name="estado" required><option value="">Selecciona un estado</option>{% for estado in estados %}<option value="{{ estado }}" {% if formulario and formulario.estado == estado %}selected{% endif %}>{{ estado }}</option>{% endfor %}</select></div>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-4"><button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>{{ 'Guardar cambios' if reserva_editar else 'Registrar reserva' }}</button>{% if reserva_editar %}<a class="btn btn-outline-secondary" href="{{ url_for('reservas') }}">Cancelar</a>{% endif %}</div>
+        </form>
+    </div>
+</section>
 
-        <label for="id_vuelo">Vuelo</label>
-        <select id="id_vuelo" name="id_vuelo" required>
-            <option value="">Selecciona un vuelo</option>
-            {% for vuelo in vuelos %}
-            <option value="{{ vuelo.id_vuelo }}" {% if formulario and formulario.id_vuelo|string == vuelo.id_vuelo|string %}selected{% endif %}>{{ vuelo.numero_vuelo }}: {{ vuelo.ciudad_origen }} ({{ vuelo.codigo_origen }}) a {{ vuelo.ciudad_destino }} ({{ vuelo.codigo_destino }}) | {{ vuelo.asientos_disponibles }} asientos | ${{ vuelo.precio }}</option>
-            {% endfor %}
-        </select>
-
-        <label for="fecha_reserva">Fecha de reserva</label>
-        <input id="fecha_reserva" name="fecha_reserva" type="date" required value="{{ formulario.fecha_reserva if formulario else '' }}">
-
-        <label for="cantidad_pasajeros">Cantidad de pasajeros</label>
-        <input id="cantidad_pasajeros" name="cantidad_pasajeros" type="number" min="1" step="1" required value="{{ formulario.cantidad_pasajeros if formulario else '' }}">
-
-        <label for="estado">Estado</label>
-        <select id="estado" name="estado" required>
-            <option value="">Selecciona un estado</option>
-            {% for estado in estados %}
-            <option value="{{ estado }}" {% if formulario and formulario.estado == estado %}selected{% endif %}>{{ estado }}</option>
-            {% endfor %}
-        </select>
-
-        <button type="submit">{{ 'Guardar cambios' if reserva_editar else 'Registrar reserva' }}</button>
-        {% if reserva_editar %}
-        <a href="{{ url_for('reservas') }}">Cancelar</a>
-        {% endif %}
-    </form>
-
-    <h2>Listado de reservas</h2>
-    <table border="1">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Pasajero</th>
-                <th>Vuelo</th>
-                <th>Origen</th>
-                <th>Destino</th>
-                <th>Fecha</th>
-                <th>Pasajeros</th>
-                <th>Total</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for reserva in reservas %}
-            <tr>
-                <td>{{ reserva.id_reserva }}</td>
-                <td>{{ reserva.nombre_pasajero }}</td>
-                <td>{{ reserva.numero_vuelo }}</td>
-                <td>{{ reserva.ciudad_origen }} ({{ reserva.codigo_origen }})</td>
-                <td>{{ reserva.ciudad_destino }} ({{ reserva.codigo_destino }})</td>
-                <td>{{ reserva.fecha_reserva }}</td>
-                <td>{{ reserva.cantidad_pasajeros }}</td>
-                <td>${{ reserva.total }}</td>
-                <td>{{ reserva.estado }}</td>
-                <td>
-                    <a href="{{ url_for('editar_reserva', id_reserva=reserva.id_reserva) }}">Editar</a>
-                    <form method="post" action="{{ url_for('eliminar_reserva', id_reserva=reserva.id_reserva) }}" style="display: inline;">
-                        <button type="submit">Eliminar</button>
-                    </form>
-                </td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="10">No hay reservas registradas.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</body>
-
-</html>
+<section class="panel table-panel">
+    <div class="panel-header"><div><h2>Listado de reservas</h2><p>Reservas y estado de pago asociado.</p></div></div>
+    <div class="table-responsive"><table class="table table-hover"><thead><tr><th>ID</th><th>Pasajero</th><th>Vuelo</th><th>Origen</th><th>Destino</th><th>Fecha</th><th>Pasajeros</th><th>Total</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
+        {% for reserva in reservas %}
+        <tr><td>{{ reserva.id_reserva }}</td><td class="fw-semibold">{{ reserva.nombre_pasajero }}</td><td>{{ reserva.numero_vuelo }}</td><td>{{ reserva.ciudad_origen }} ({{ reserva.codigo_origen }})</td><td>{{ reserva.ciudad_destino }} ({{ reserva.codigo_destino }})</td><td>{{ reserva.fecha_reserva }}</td><td>{{ reserva.cantidad_pasajeros }}</td><td>${{ reserva.total }}</td><td><span class="status-pill {% if reserva.estado == 'Cancelada' %}danger{% elif reserva.estado == 'Pendiente' %}warning{% endif %}">{{ reserva.estado }}</span></td><td><div class="table-actions"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('editar_reserva', id_reserva=reserva.id_reserva) }}"><i class="bi bi-pencil me-1"></i>Editar</a><form method="post" action="{{ url_for('eliminar_reserva', id_reserva=reserva.id_reserva) }}" data-confirm="¿Eliminar esta reserva? Se devolverán sus asientos si corresponde."><button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash me-1"></i>Eliminar</button></form></div></td></tr>
+        {% else %}<tr><td class="empty-row" colspan="10">No hay reservas registradas.</td></tr>{% endfor %}
+    </tbody></table></div>
+</section>
+{% endblock %}

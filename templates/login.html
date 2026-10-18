@@ -1,27 +1,28 @@
-<!DOCTYPE html>
-<html lang="es">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Iniciar sesión | Agencia de Vuelos</title>
-</head>
+{% block title %}Iniciar sesión | Agencia de Vuelos{% endblock %}
 
-<body>
-    <h1>Agencia de Vuelos</h1>
-    <h2>Iniciar sesión</h2>
+{% block content %}
+<section class="login-card">
+    <div class="login-symbol"><i class="bi bi-airplane-engines-fill"></i></div>
+    <p class="login-brand-name">Agencia de Vuelos</p>
+    <h1>Bienvenido</h1>
+    <p class="login-caption">Inicia sesión en tu cuenta</p>
+
     {% if error %}
-    <p role="alert">{{ error }}</p>
+    <div class="alert alert-danger py-2 small" role="alert">{{ error }}</div>
     {% endif %}
-    <form method="post" action="{{ url_for('login') }}">
-        <label for="correo">Correo</label>
-        <input id="correo" name="correo" type="email" autocomplete="username" required>
 
-        <label for="contrasena">Contraseña</label>
-        <input id="contrasena" name="contrasena" type="password" autocomplete="current-password" required>
-
-        <button type="submit">Iniciar sesión</button>
+    <form method="post" action="{{ url_for('login') }}" class="d-grid gap-3">
+        <div>
+            <label class="form-label" for="correo">Correo</label>
+            <input class="form-control" id="correo" name="correo" type="email" autocomplete="username" required autofocus>
+        </div>
+        <div>
+            <label class="form-label" for="contrasena">Contraseña</label>
+            <input class="form-control" id="contrasena" name="contrasena" type="password" autocomplete="current-password" required>
+        </div>
+        <button class="btn btn-primary w-100" type="submit"><i class="bi bi-box-arrow-in-right me-2"></i>Iniciar sesión</button>
     </form>
-</body>
-
-</html>
+</section>
+{% endblock %}
