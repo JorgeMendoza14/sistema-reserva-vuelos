@@ -2,12 +2,18 @@ import os
 from decimal import Decimal, InvalidOperation
 import mysql.connector
 
-from flask import Flask, abort, redirect, render_template, request, url_for
+from flask import Flask, abort, redirect, render_template, request, session, url_for
 from dotenv import load_dotenv
+from werkzeug.security import check_password_hash
 
 load_dotenv()
 
 app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET_KEY")
+if not app.secret_key:
+    raise RuntimeError("Agrega la variable FLASK_SECRET_KEY al archivo .env.")
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 ESTADOS_VUELO = ("Disponible", "Completo", "Cancelado", "Finalizado")
 ESTADOS_RESERVA = ("Pendiente", "Confirmada", "Cancelada")
@@ -22,6 +28,63 @@ def obtener_conexion():
         password=os.getenv("DB_PASSWORD"),
         database=os.getenv("DB_NAME")
     )
+
+
+@app.before_request
+def proteger_secciones():
+    if request.endpoint in ("login", "static"):
+        return None
+    if session.get("id_usuario") is None:
+        return redirect(url_for("login"))
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if session.get("id_usuario") is not None:
+        return redirect(url_for("inicio"))
+
+    error = None
+    if request.method == "POST":
+        correo = request.form.get("correo", "").strip()
+        contrasena = request.form.get("contrasena", "")
+        conexion = obtener_conexion()
+        cursor = conexion.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                """
+                SELECT id_usuario, nombre, correo, contrasena, rol
+                FROM usuarios
+                WHERE correo = %s AND estado = %s
+                """,
+                (correo, True),
+            )
+            usuario = cursor.fetchone()
+        finally:
+            cursor.close()
+            conexion.close()
+
+        try:
+            credenciales_validas = usuario and check_password_hash(
+                usuario["contrasena"], contrasena
+            )
+        except (TypeError, ValueError):
+            credenciales_validas = False
+
+        if credenciales_validas:
+            session.clear()
+            session["id_usuario"] = usuario["id_usuario"]
+            session["nombre"] = usuario["nombre"]
+            session["rol"] = usuario["rol"]
+            return redirect(url_for("inicio"))
+        error = "Correo o contraseña incorrectos, o usuario inactivo."
+
+    return render_template("login.html", error=error)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
 
 
 def cargar_opciones_vuelo(cursor):
@@ -346,34 +409,28 @@ def cambiar_reserva_por_pago(cursor, reserva, estado_pago, estado_anterior, otro
 @app.route("/")
 def inicio():
     conexion = obtener_conexion()
-
     cursor = conexion.cursor(dictionary=True)
-
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT
-            v.numero_vuelo,
-            a.nombre AS aerolinea,
-            origen.ciudad AS origen,
-            destino.ciudad AS destino,
-            v.fecha_salida,
-            v.hora_salida,
-            v.precio,
-            v.asientos_disponibles
-        FROM vuelos v
-        INNER JOIN aerolineas a
-            ON v.id_aerolinea = a.id_aerolinea
-        INNER JOIN aeropuertos origen
-            ON v.id_origen = origen.id_aeropuerto
-        INNER JOIN aeropuertos destino
-            ON v.id_destino = destino.id_aeropuerto
-    """)
-
-    vuelos = cursor.fetchall()
-
+            (SELECT COUNT(*) FROM pasajeros) AS total_pasajeros,
+            (SELECT COUNT(*) FROM vuelos) AS total_vuelos,
+            (SELECT COUNT(*) FROM reservas) AS total_reservas,
+            (SELECT COUNT(*) FROM reservas WHERE estado = %s) AS reservas_pendientes,
+            (SELECT COUNT(*) FROM pagos WHERE estado = %s) AS pagos_realizados,
+            (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE estado = %s)
+                AS ingresos_totales
+        """,
+        ("Pendiente", "Pagado", "Pagado"),
+    )
+    estadisticas = cursor.fetchone()
     cursor.close()
     conexion.close()
-
-    return render_template("index.html", vuelos=vuelos)
+    return render_template(
+        "dashboard.html",
+        usuario=session.get("nombre"),
+        estadisticas=estadisticas,
+    )
 
 
 @app.route("/pasajeros", methods=["GET", "POST"])

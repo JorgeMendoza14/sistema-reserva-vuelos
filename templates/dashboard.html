@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel administrativo | Agencia de Vuelos</title>
+</head>
+
+<body>
+    <h1>Panel administrativo</h1>
+    <p>Bienvenido, {{ usuario }}</p>
+
+    <nav>
+        <a href="{{ url_for('pasajeros') }}">Pasajeros</a>
+        | <a href="{{ url_for('aerolineas') }}">Aerolíneas</a>
+        | <a href="{{ url_for('aeropuertos') }}">Aeropuertos</a>
+        | <a href="{{ url_for('vuelos') }}">Vuelos</a>
+        | <a href="{{ url_for('reservas') }}">Reservas</a>
+        | <a href="{{ url_for('pagos') }}">Pagos</a>
+        | <a href="{{ url_for('logout') }}">Cerrar sesión</a>
+    </nav>
+
+    <h2>Resumen</h2>
+    <table border="1">
+        <tbody>
+            <tr>
+                <th>Total de pasajeros</th>
+                <td>{{ estadisticas.total_pasajeros }}</td>
+            </tr>
+            <tr>
+                <th>Total de vuelos</th>
+                <td>{{ estadisticas.total_vuelos }}</td>
+            </tr>
+            <tr>
+                <th>Total de reservas</th>
+                <td>{{ estadisticas.total_reservas }}</td>
+            </tr>
+            <tr>
+                <th>Reservas pendientes</th>
+                <td>{{ estadisticas.reservas_pendientes }}</td>
+            </tr>
+            <tr>
+                <th>Pagos realizados</th>
+                <td>{{ estadisticas.pagos_realizados }}</td>
+            </tr>
+            <tr>
+                <th>Ingresos de pagos realizados</th>
+                <td>${{ estadisticas.ingresos_totales }}</td>
+            </tr>
+        </tbody>
+    </table>
+</body>
+
+</html>
